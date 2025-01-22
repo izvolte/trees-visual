@@ -14,6 +14,7 @@ const NavMenu = () => {
             {/* Ссылки на различные страницы */}
             <Link to="/">Главная</Link>
             <Link to="/b-tree">Binary Tree</Link>
+            <Link to="/red-black-tree">Red Black Tree</Link>
         </nav>
     );
 };
