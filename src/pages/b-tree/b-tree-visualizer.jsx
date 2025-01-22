@@ -1,7 +1,5 @@
-// BTreeVisualizer.jsx
-
-import { useState, useEffect } from "react";
-import BTree from "./BTree";
+import { useState } from "react";
+import BTree from "./b-tree.js";
 
 const POINTER_SIZE = 10;
 const KEY_WIDTH = 30;
@@ -21,7 +19,7 @@ function computeNodeWidth(numKeys) {
 let globalId = 0;
 
 function layoutBTree(root) {
-    if (!root) return { nodes: [], edges: [] };
+    if (!root) return { nodes: [], edges: [], totalWidth: 0 };
 
     globalId = 0;
     const nodes = [];
@@ -88,7 +86,10 @@ function layoutBTree(root) {
     return { nodes, edges, totalWidth };
 }
 
-function NodeComponent({ node, minX }) {
+/**
+ * Node component, now also accepts onKeyClick to handle deletion by click
+ */
+function NodeComponent({ node, minX, onKeyClick }) {
     const { x, y, keys } = node;
     const numKeys = keys.length;
     const elements = [];
@@ -110,6 +111,7 @@ function NodeComponent({ node, minX }) {
     }
 
     function renderKey(k, i) {
+        // Rectangle for the key
         elements.push(
             <rect
                 key={`krect-${node.id}-${i}`}
@@ -119,8 +121,12 @@ function NodeComponent({ node, minX }) {
                 height={BOX_HEIGHT}
                 fill="#fff"
                 stroke="#333"
+                // Add onClick for deletion
+                onClick={() => onKeyClick?.(k)}
+                style={{ cursor: "pointer" }}
             />
         );
+        // Text for the key
         elements.push(
             <text
                 key={`ktext-${node.id}-${i}`}
@@ -129,6 +135,9 @@ function NodeComponent({ node, minX }) {
                 textAnchor="middle"
                 fontSize="14"
                 fill="#333"
+                // Add onClick in case user misses the rect
+                onClick={() => onKeyClick?.(k)}
+                style={{ cursor: "pointer" }}
             >
                 {k}
             </text>
@@ -148,11 +157,12 @@ function NodeComponent({ node, minX }) {
 export default function BTreeVisualizer() {
     const [maxKeys, setMaxKeys] = useState(3);
     const [inputKey, setInputKey] = useState("");
-    const [history, setHistory] = useState([[]]); // Инициализируем историей с пустым массивом ключей
+    const [history, setHistory] = useState([[]]); // История: массив массивов ключей
     const [currentStep, setCurrentStep] = useState(0);
 
-    // Функция для построения дерева до текущего шага
+    // Функция для построения B-дерева из массива ключей
     function buildTree(keys) {
+        if (keys.length === 0) return null;
         const btree = new BTree(maxKeys);
         for (let k of keys) {
             btree.insert(k);
@@ -160,18 +170,17 @@ export default function BTreeVisualizer() {
         return btree.root;
     }
 
-    // Обработчик изменения максимального числа ключей
+    // Изменение maxKeys обнуляет историю
     function handleChangeMaxKeys(e) {
         const val = parseInt(e.target.value, 10);
-        if (!isNaN(val) && val >= 3) { // Минимум 3 ключа
+        if (!isNaN(val) && val >= 3) {
             setMaxKeys(val);
-            // Сброс истории при изменении maxKeys
             setHistory([[]]);
             setCurrentStep(0);
         }
     }
 
-    // Обработчик добавления нового ключа
+    // Вставка нового ключа
     function handleAddKey() {
         if (inputKey === "") return;
         const k = parseInt(inputKey, 10);
@@ -182,7 +191,6 @@ export default function BTreeVisualizer() {
             alert(`Ключ ${k} уже существует в дереве.`);
             return;
         }
-
         const newKeys = [...currentKeys, k];
         const newHistory = [...history.slice(0, currentStep + 1), newKeys];
         setHistory(newHistory);
@@ -190,7 +198,27 @@ export default function BTreeVisualizer() {
         setInputKey("");
     }
 
-    // Обработчики навигации по истории
+    // Удаление ключа по клику
+    function handleDeleteKey(k) {
+        const currentKeys = history[currentStep];
+        if (!currentKeys.includes(k)) {
+            // Ключа нет в этом состоянии
+            return;
+        }
+        // Формируем новый список ключей, исключая k
+        const newKeys = currentKeys.filter((key) => key !== k);
+
+        // Добавляем как новый шаг в историю
+        const newHistory = [
+            ...history.slice(0, currentStep + 1),
+            newKeys
+        ];
+        setHistory(newHistory);
+        // Переходим к последнему шагу (куда добавили изменения)
+        setCurrentStep(newHistory.length - 1);
+    }
+
+    // Кнопки "Назад" и "Вперед" для истории
     function handlePrev() {
         setCurrentStep((prev) => Math.max(prev - 1, 0));
     }
@@ -199,16 +227,17 @@ export default function BTreeVisualizer() {
         setCurrentStep((prev) => Math.min(prev + 1, history.length - 1));
     }
 
-    // Получаем ключи до текущего шага
+    // Текущий список ключей + построенное дерево
     const currentKeys = history[currentStep];
-    // Строим дерево
     const currentRoot = buildTree(currentKeys);
-    // Лэйаут дерева
-    const { nodes, edges } = layoutBTree(currentRoot);
+
+    // Выполняем layout
+    const { nodes, edges } = layoutBTree(currentRoot || null);
+
+    // Вычисляем габариты для SVG
     let minX = 0,
         maxX = 0,
         maxY = 0;
-
     nodes.forEach((n) => {
         if (n.x < minX) minX = n.x;
         const r = n.x + n.width;
@@ -276,6 +305,8 @@ export default function BTreeVisualizer() {
                                 <path d="M0,0 L0,10 L10,5 z" fill="#888" />
                             </marker>
                         </defs>
+
+                        {/* Рисуем линии (ребра) */}
                         {edges.map((edge, i) => {
                             const parent = nodes[edge.parentId];
                             const child = nodes[edge.childId];
@@ -301,9 +332,15 @@ export default function BTreeVisualizer() {
                                 />
                             );
                         })}
+
+                        {/* Рисуем узлы */}
                         {nodes.map((node) => (
                             <g key={node.id}>
-                                <NodeComponent node={node} minX={minX} />
+                                <NodeComponent
+                                    node={node}
+                                    minX={minX}
+                                    onKeyClick={handleDeleteKey}
+                                />
                             </g>
                         ))}
                     </svg>
