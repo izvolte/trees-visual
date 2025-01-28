@@ -1,5 +1,3 @@
-// red-black-tree.js
-
 // Для удобства используем строки "RED" и "BLACK"
 const RED = "RED";
 const BLACK = "BLACK";
@@ -36,9 +34,8 @@ export default class RedBlackTree {
                 } else if (key > current.key) {
                     current = current.right;
                 } else {
-                    // Если ключ уже есть, можно либо игнорировать,
-                    // либо заменить, либо не вставлять дубликаты
-                    return; // Для простоты не вставляем дубликат
+                    // Если ключ уже есть, для простоты не вставляем дубликат
+                    return;
                 }
             }
 
@@ -157,5 +154,190 @@ export default class RedBlackTree {
 
         y.right = x;
         x.parent = y;
+    }
+
+    // ===========
+    // Удаление
+    // ===========
+
+    delete(key) {
+        // Найдём узел, который хотим удалить
+        let z = this.findNode(key);
+        if (!z) return; // Узла с таким ключом нет, ничего не делаем
+
+        let y = z; // y - узел, который фактически будет "убран" из дерева
+        let yOriginalColor = y.color;
+        let x = null;
+
+        if (z.left === null) {
+            // У z только правый (или вовсе нет) ребёнок
+            x = z.right;
+            this.rbTransplant(z, z.right);
+        } else if (z.right === null) {
+            // У z только левый ребёнок
+            x = z.left;
+            this.rbTransplant(z, z.left);
+        } else {
+            // У z два ребёнка: ищем преемника (минимум в правом поддереве)
+            let successor = this.minimum(z.right);
+            y = successor;
+            yOriginalColor = y.color;
+            x = y.right;
+
+            if (y.parent === z) {
+                // Особый случай: successor — прямой ребёнок z
+                if (x) {
+                    x.parent = y;
+                }
+            } else {
+                // Перенесём поддерево
+                this.rbTransplant(y, y.right);
+                y.right = z.right;
+                if (y.right) {
+                    y.right.parent = y;
+                }
+            }
+            // Заменим z на y
+            this.rbTransplant(z, y);
+            y.left = z.left;
+            if (y.left) {
+                y.left.parent = y;
+            }
+            y.color = z.color;
+        }
+
+        // Если удалили чёрный узел, надо восстановить свойства
+        if (yOriginalColor === BLACK && x) {
+            this.fixDelete(x);
+        }
+    }
+
+    /**
+     * Поиск узла с данным ключом (вспомогательный метод).
+     */
+    findNode(key) {
+        let current = this.root;
+        while (current !== null) {
+            if (key < current.key) {
+                current = current.left;
+            } else if (key > current.key) {
+                current = current.right;
+            } else {
+                return current; // Нашли
+            }
+        }
+        return null; // Не нашли
+    }
+
+    /**
+     * Наименьший элемент в поддереве (используется, например, для поиска преемника).
+     */
+    minimum(node) {
+        let current = node;
+        while (current.left !== null) {
+            current = current.left;
+        }
+        return current;
+    }
+
+    /**
+     * Стандартная "трансплантация" в красно-чёрном дереве:
+     * Заменяет поддерево, корнем которого является u, на поддерево,
+     * корнем которого является v. Узел u.parent перенаправляет свои
+     * ссылки на v.
+     */
+    rbTransplant(u, v) {
+        if (!u.parent) {
+            // u был корнем
+            this.root = v;
+        } else if (u === u.parent.left) {
+            u.parent.left = v;
+        } else {
+            u.parent.right = v;
+        }
+        if (v) {
+            v.parent = u.parent;
+        }
+    }
+
+    /**
+     * Восстановление свойств красно-чёрного дерева после удаления.
+     */
+    fixDelete(x) {
+        // Пока x не корень и x чёрный
+        while (x !== this.root && this.getColor(x) === BLACK) {
+            if (x === x.parent.left) {
+                let w = x.parent.right; // "брат" x
+                if (this.getColor(w) === RED) {
+                    // Случай 1: брат красный
+                    w.color = BLACK;
+                    x.parent.color = RED;
+                    this.rotateLeft(x.parent);
+                    w = x.parent.right;
+                }
+                // Случай 2: брат чёрный, и оба его ребёнка чёрные
+                if (
+                    this.getColor(w.left) === BLACK &&
+                    this.getColor(w.right) === BLACK
+                ) {
+                    w.color = RED;
+                    x = x.parent;
+                } else {
+                    // Случай 3: w чёрный, левый ребёнок красный, правый чёрный
+                    if (this.getColor(w.right) === BLACK) {
+                        if (w.left) w.left.color = BLACK;
+                        w.color = RED;
+                        this.rotateRight(w);
+                        w = x.parent.right;
+                    }
+                    // Случай 4: w чёрный, правый ребёнок красный
+                    w.color = x.parent.color;
+                    x.parent.color = BLACK;
+                    if (w.right) w.right.color = BLACK;
+                    this.rotateLeft(x.parent);
+                    x = this.root;
+                }
+            } else {
+                // x === x.parent.right (симметричный случай)
+                let w = x.parent.left;
+                if (this.getColor(w) === RED) {
+                    w.color = BLACK;
+                    x.parent.color = RED;
+                    this.rotateRight(x.parent);
+                    w = x.parent.left;
+                }
+                if (
+                    this.getColor(w.right) === BLACK &&
+                    this.getColor(w.left) === BLACK
+                ) {
+                    w.color = RED;
+                    x = x.parent;
+                } else {
+                    if (this.getColor(w.left) === BLACK) {
+                        if (w.right) w.right.color = BLACK;
+                        w.color = RED;
+                        this.rotateLeft(w);
+                        w = x.parent.left;
+                    }
+                    w.color = x.parent.color;
+                    x.parent.color = BLACK;
+                    if (w.left) w.left.color = BLACK;
+                    this.rotateRight(x.parent);
+                    x = this.root;
+                }
+            }
+        }
+        // Сделаем узел чёрным, чтобы в корне сохранились свойства
+        if (x) {
+            x.color = BLACK;
+        }
+    }
+
+    /**
+     * Утилита для безопасного получения цвета узла (если null, считаем чёрным).
+     */
+    getColor(node) {
+        if (!node) return BLACK;
+        return node.color;
     }
 }

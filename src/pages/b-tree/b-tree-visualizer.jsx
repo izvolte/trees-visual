@@ -1,6 +1,7 @@
 import { useState } from "react";
 import BTree from "./b-tree.js";
 
+// Константы для отрисовки
 const POINTER_SIZE = 10;
 const KEY_WIDTH = 30;
 const BOX_HEIGHT = 24;
@@ -8,6 +9,9 @@ const GAP = 4;
 const VERTICAL_LEVEL_GAP = 60;
 const HORIZONTAL_NODE_GAP = 20;
 
+/**
+ * Вычисляем ширину узла (в пикселях), исходя из числа ключей.
+ */
 function computeNodeWidth(numKeys) {
     return (
         (numKeys + 1) * POINTER_SIZE +
@@ -18,6 +22,10 @@ function computeNodeWidth(numKeys) {
 
 let globalId = 0;
 
+/**
+ * Рекурсивно обходим B-дерево, чтобы получить массивы узлов и рёбер,
+ * а также затем вычислить позиции каждого узла (layout).
+ */
 function layoutBTree(root) {
     if (!root) return { nodes: [], edges: [], totalWidth: 0 };
 
@@ -25,9 +33,11 @@ function layoutBTree(root) {
     const nodes = [];
     const edges = [];
 
+    // Шаг 1: Собираем структуру узлов (nodes) и рёбер (edges)
     function traverse(node, depth) {
         const nodeId = globalId++;
         const width = computeNodeWidth(node.keys.length);
+
         nodes[nodeId] = {
             id: nodeId,
             x: 0,
@@ -37,6 +47,7 @@ function layoutBTree(root) {
             isLeaf: node.isLeaf,
             pointers: []
         };
+
         if (!node.isLeaf) {
             for (let i = 0; i < node.children.length; i++) {
                 const childId = traverse(node.children[i], depth + 1);
@@ -53,6 +64,7 @@ function layoutBTree(root) {
 
     const rootId = traverse(root, 0);
 
+    // Шаг 2: Рекурсивная функция для вычисления ширины поддерева
     function computeSubtreeWidth(nodeId) {
         const n = nodes[nodeId];
         if (n.isLeaf || n.pointers.length === 0) return n.width;
@@ -64,6 +76,7 @@ function layoutBTree(root) {
         return Math.max(n.width, sum);
     }
 
+    // Шаг 3: Устанавливаем координаты узлов
     function setPositions(nodeId, depth, leftOffset) {
         const subtreeW = computeSubtreeWidth(nodeId);
         const n = nodes[nodeId];
@@ -87,7 +100,8 @@ function layoutBTree(root) {
 }
 
 /**
- * Node component, now also accepts onKeyClick to handle deletion by click
+ * Компонент для отрисовки узла B-дерева (прямоугольники + текст ключей).
+ * Также передаём onKeyClick для обработки удаления по клику.
  */
 function NodeComponent({ node, minX, onKeyClick }) {
     const { x, y, keys } = node;
@@ -95,6 +109,7 @@ function NodeComponent({ node, minX, onKeyClick }) {
     const elements = [];
     let currentX = x;
 
+    // Рисуем "указатель" (небольшой прямоугольник), отделяющий ключи
     function renderPointer(i) {
         elements.push(
             <rect
@@ -110,8 +125,9 @@ function NodeComponent({ node, minX, onKeyClick }) {
         currentX += POINTER_SIZE + GAP;
     }
 
+    // Рисуем прямоугольник и текст для ключа
     function renderKey(k, i) {
-        // Rectangle for the key
+        // Прямоугольник под ключ
         elements.push(
             <rect
                 key={`krect-${node.id}-${i}`}
@@ -121,12 +137,12 @@ function NodeComponent({ node, minX, onKeyClick }) {
                 height={BOX_HEIGHT}
                 fill="#fff"
                 stroke="#333"
-                // Add onClick for deletion
+                // onClick для удаления
                 onClick={() => onKeyClick?.(k)}
                 style={{ cursor: "pointer" }}
             />
         );
-        // Text for the key
+        // Текст с самим значением ключа
         elements.push(
             <text
                 key={`ktext-${node.id}-${i}`}
@@ -135,7 +151,6 @@ function NodeComponent({ node, minX, onKeyClick }) {
                 textAnchor="middle"
                 fontSize="14"
                 fill="#333"
-                // Add onClick in case user misses the rect
                 onClick={() => onKeyClick?.(k)}
                 style={{ cursor: "pointer" }}
             >
@@ -145,6 +160,7 @@ function NodeComponent({ node, minX, onKeyClick }) {
         currentX += KEY_WIDTH + GAP;
     }
 
+    // Отрисовываем в порядке: pointer -> key -> pointer -> key ...
     for (let i = 0; i < numKeys; i++) {
         renderPointer(i);
         renderKey(keys[i], i);
@@ -154,6 +170,9 @@ function NodeComponent({ node, minX, onKeyClick }) {
     return <g>{elements}</g>;
 }
 
+/**
+ * Основной компонент визуализации B-дерева.
+ */
 export default function BTreeVisualizer() {
     const [maxKeys, setMaxKeys] = useState(3);
     const [inputKey, setInputKey] = useState("");
@@ -180,7 +199,7 @@ export default function BTreeVisualizer() {
         }
     }
 
-    // Вставка нового ключа
+    // Вставка нового ключа (из текстового поля)
     function handleAddKey() {
         if (inputKey === "") return;
         const k = parseInt(inputKey, 10);
@@ -198,6 +217,20 @@ export default function BTreeVisualizer() {
         setInputKey("");
     }
 
+    // Вставка случайного ключа от 1 до 1000, который ещё не в дереве
+    function handleAddRandomKey() {
+        const currentKeys = history[currentStep];
+        let rand;
+        do {
+            rand = Math.floor(Math.random() * 1000) + 1;
+        } while (currentKeys.includes(rand));
+
+        const newKeys = [...currentKeys, rand];
+        const newHistory = [...history.slice(0, currentStep + 1), newKeys];
+        setHistory(newHistory);
+        setCurrentStep(newHistory.length - 1);
+    }
+
     // Удаление ключа по клику
     function handleDeleteKey(k) {
         const currentKeys = history[currentStep];
@@ -209,16 +242,13 @@ export default function BTreeVisualizer() {
         const newKeys = currentKeys.filter((key) => key !== k);
 
         // Добавляем как новый шаг в историю
-        const newHistory = [
-            ...history.slice(0, currentStep + 1),
-            newKeys
-        ];
+        const newHistory = [...history.slice(0, currentStep + 1), newKeys];
         setHistory(newHistory);
         // Переходим к последнему шагу (куда добавили изменения)
         setCurrentStep(newHistory.length - 1);
     }
 
-    // Кнопки "Назад" и "Вперед" для истории
+    // Кнопки "Назад" и "Вперед" для перемотки истории
     function handlePrev() {
         setCurrentStep((prev) => Math.max(prev - 1, 0));
     }
@@ -253,6 +283,8 @@ export default function BTreeVisualizer() {
     return (
         <div style={{ margin: "20px" }}>
             <h1>B-дерево (визуализация)</h1>
+
+            {/* Панель с настройками и вводом */}
             <div style={{ marginBottom: "10px" }}>
                 <label>Макс. число ключей в узле: </label>
                 <input
@@ -270,7 +302,12 @@ export default function BTreeVisualizer() {
                     style={{ width: 80, marginRight: 20 }}
                 />
                 <button onClick={handleAddKey}>Добавить</button>
+                <button onClick={handleAddRandomKey} style={{ marginLeft: 10 }}>
+                    Случайный ключ
+                </button>
             </div>
+
+            {/* Панель управления историей */}
             <div style={{ marginBottom: "10px" }}>
                 <button onClick={handlePrev} disabled={currentStep <= 0}>
                     Назад
@@ -286,6 +323,8 @@ export default function BTreeVisualizer() {
                     Шаг {currentStep + 1} / {history.length}
                 </span>
             </div>
+
+            {/* Область визуализации */}
             <div style={{ border: "1px solid #ccc", display: "inline-block" }}>
                 {nodes.length > 0 ? (
                     <svg
@@ -306,7 +345,7 @@ export default function BTreeVisualizer() {
                             </marker>
                         </defs>
 
-                        {/* Рисуем линии (ребра) */}
+                        {/* Рисуем линии (рёбра) */}
                         {edges.map((edge, i) => {
                             const parent = nodes[edge.parentId];
                             const child = nodes[edge.childId];

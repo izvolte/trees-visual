@@ -1,45 +1,49 @@
 class BTreeNode {
     constructor(maxKeys, isLeaf = true) {
-        this.maxKeys = maxKeys;
-        this.isLeaf = isLeaf;
-        this.keys = [];
-        this.children = [];
+        this.maxKeys = maxKeys;       // Максимальное количество ключей в узле
+        this.isLeaf = isLeaf;         // Показывает, является ли узел листом
+        this.keys = [];               // Список ключей в узле
+        this.children = [];           // Список дочерних узлов
 
-        // Minimum degree (T).
-        // For a node to hold up to maxKeys, we have T = Math.floor((maxKeys + 1) / 2).
-        // Example: if maxKeys = 3, T = 2 => each node can have 1..3 keys, except root can have fewer.
+        // Минимальная степень (T).
+        // Узел может содержать максимум 'maxKeys' ключей, и мы устанавливаем:
+        //   T = Math.floor((maxKeys + 1) / 2).
+        // Пример: если maxKeys = 3, T = 2 => каждый узел (кроме корня) должен содержать от 1 до 3 ключей.
         this.minDegree = Math.floor((this.maxKeys + 1) / 2);
     }
 
-    // ===================
-    //  Insertion methods
-    // ===================
+    // ==========================
+    //      Методы вставки
+    // ==========================
 
-    // Insert a new key in a node that is assumed to be non-full
+    /**
+     * Вставляет новый ключ в узел, предполагая что узел НЕ заполнен до максимума.
+     */
     insertNonFull(key) {
         let i = this.keys.length - 1;
 
         if (this.isLeaf) {
-            // Insert in the leaf node
+            // Вставка в листовой узел
             while (i >= 0 && key < this.keys[i]) {
                 i--;
             }
-            // Check duplicates
+            // Проверяем на дубликаты
             if (i >= 0 && this.keys[i] === key) {
                 console.log(`Ключ ${key} уже существует в дереве.`);
                 return;
             }
+            // Вставляем ключ на освободившуюся позицию
             this.keys.splice(i + 1, 0, key);
         } else {
-            // Move i to find the child to recurse on
+            // Ищем подходящего ребёнка, в который надо рекурсивно вставлять ключ
             while (i >= 0 && key < this.keys[i]) {
                 i--;
             }
             i++;
-            // If the chosen child is full, split it
+            // Если выбранный ребёнок заполнен, сначала разбиваем (split)
             if (this.children[i].keys.length === this.maxKeys) {
                 this.splitChild(i);
-                // After splitting, decide which of the two children to go to
+                // После разбиения решаем, в какой из двух узлов идти дальше
                 if (key > this.keys[i]) {
                     i++;
                 } else if (key === this.keys[i]) {
@@ -51,72 +55,75 @@ class BTreeNode {
         }
     }
 
-    // Split a full child node
+    /**
+     * Разбивает заполненный дочерний узел (по индексу 'index').
+     */
     splitChild(index) {
         const child = this.children[index];
         const newNode = new BTreeNode(child.maxKeys, child.isLeaf);
 
-        // Midpoint index (T-1, if maxKeys=2T-1)
+        // Серединный индекс (для maxKeys = 2T - 1, это будет T - 1)
+        // Мы используем: midIndex = Math.floor(child.maxKeys / 2)
         const midIndex = Math.floor(child.maxKeys / 2);
 
-        // Move the higher keys to newNode
+        // Забираем все ключи правее середины в новый узел
         newNode.keys = child.keys.splice(midIndex + 1);
 
-        // Middle key to lift up
+        // Ключ, который "поднимается" в родителя
         const upKey = child.keys.splice(midIndex, 1)[0];
 
-        // Move children over if non-leaf
+        // Если дочерний узел не лист, то часть детей тоже переносим в newNode
         if (!child.isLeaf) {
             newNode.children = child.children.splice(midIndex + 1);
         }
 
-        // Insert the new child into "this"
+        // Поднимаем upKey в текущий узел
         this.keys.splice(index, 0, upKey);
+        // Вставляем указатель на новый узел
         this.children.splice(index + 1, 0, newNode);
     }
 
-    // =============
-    //  Deletion API
-    // =============
+    // ==========================
+    //      Методы удаления
+    // ==========================
 
     /**
-     * Recursively delete the key from the subtree rooted with this node.
+     * Рекурсивно удаляет ключ 'key' в поддереве, корнем которого является данный узел.
      */
     deleteKey(key) {
         const idx = this.findKey(key);
 
-        // Case A: key is in this node's keys[]
+        // Случай A: ключ находится в массиве keys[] данного узла
         if (idx < this.keys.length && this.keys[idx] === key) {
             if (this.isLeaf) {
-                // Case A1: key is in a leaf node
+                // A1: ключ в листовом узле - удаляем прямо здесь
                 this.removeFromLeaf(idx);
             } else {
-                // Case A2: key is in an internal node
+                // A2: ключ во внутреннем узле
                 this.removeFromNonLeaf(idx);
             }
         } else {
-            // Case B: key is not in this node
+            // Случай B: ключ не находится в данном узле
             if (this.isLeaf) {
-                // If the node is leaf, then the key does not exist in the tree
-                // Nothing to do.
+                // Если узел лист, то значит ключа в дереве нет, ничего не делаем
                 return;
             }
 
-            // Otherwise, the key is in one of the children
-            // Decide the child which should contain the key
-            const childIndex = idx; // This is the child that will contain the key
-            // Before recursing, ensure the child has at least minDegree keys
+            // Иначе ключ должен быть в одном из потомков
+            const childIndex = idx; // Ребёнок, в котором должен находиться ключ
+            // Убеждаемся, что у ребёнка достаточно ключей (>= minDegree), иначе - fill
             if (this.children[childIndex].keys.length < this.minDegree) {
                 this.fill(childIndex);
             }
 
-            // Now the child has enough keys; recurse
+            // Теперь у ребёнка достаточно ключей, рекурсивно удаляем
             this.children[childIndex].deleteKey(key);
         }
     }
 
     /**
-     * Return the index of the first key >= key, or this.keys.length if none are >= key.
+     * Возвращает индекс первого ключа, который >= key,
+     * или this.keys.length, если таких ключей нет.
      */
     findKey(key) {
         let idx = 0;
@@ -127,17 +134,17 @@ class BTreeNode {
     }
 
     /**
-     * Remove the key at keys[idx] from a leaf node.
+     * Удаляет ключ по индексу 'idx' из листового узла.
      */
     removeFromLeaf(idx) {
         this.keys.splice(idx, 1);
     }
 
     /**
-     * Remove the key at keys[idx] from an internal node.
-     *   - If the left child has >= minDegree keys, replace the key by its predecessor
-     *   - Else if the right child has >= minDegree keys, replace the key by its successor
-     *   - Else merge the two children around the key and then delete from the merged child
+     * Удаляет ключ по индексу 'idx' из внутреннего узла:
+     *   - Если левый ребёнок имеет >= minDegree ключей, заменяем ключ его предшественником
+     *   - Иначе если правый ребёнок имеет >= minDegree ключей, заменяем ключ его преемником
+     *   - Иначе сливаем (merge) два ребёнка вокруг удаляемого ключа и удаляем из слитого узла
      */
     removeFromNonLeaf(idx) {
         const key = this.keys[idx];
@@ -145,26 +152,26 @@ class BTreeNode {
         const rightChild = this.children[idx + 1];
 
         if (leftChild.keys.length >= this.minDegree) {
-            // Replace with predecessor
+            // Заменяем ключ предшественником (из левого поддерева)
             const pred = this.getPredecessor(idx);
             this.keys[idx] = pred;
             leftChild.deleteKey(pred);
         } else if (rightChild.keys.length >= this.minDegree) {
-            // Replace with successor
+            // Заменяем ключ преемником (из правого поддерева)
             const succ = this.getSuccessor(idx);
             this.keys[idx] = succ;
             rightChild.deleteKey(succ);
         } else {
-            // Merge children[idx] and children[idx+1]
+            // Сливаем два ребёнка
             this.merge(idx);
-            // After merge, the key we want to delete is in children[idx]
+            // После слияния ключ, который хотели удалить, находится в leftChild
             leftChild.deleteKey(key);
         }
     }
 
     /**
-     * Get predecessor of keys[idx]:
-     *   - Move to the left child, then keep going to the rightmost leaf.
+     * Находит предшественник для keys[idx]:
+     *   - Переходим в левого ребёнка и идём по цепочке правых детей до листа.
      */
     getPredecessor(idx) {
         let current = this.children[idx];
@@ -175,8 +182,8 @@ class BTreeNode {
     }
 
     /**
-     * Get successor of keys[idx]:
-     *   - Move to the right child, then keep going to the leftmost leaf.
+     * Находит преемника для keys[idx]:
+     *   - Переходим в правого ребёнка и идём по цепочке левых детей до листа.
      */
     getSuccessor(idx) {
         let current = this.children[idx + 1];
@@ -187,22 +194,22 @@ class BTreeNode {
     }
 
     /**
-     * Ensure that the child node children[idx] has at least minDegree-1 keys.
-     * If it has fewer, we try to borrow from siblings or merge.
+     * Убеждается, что у дочернего узла children[idx] есть как минимум (minDegree - 1) ключей.
+     * Если их меньше, пытаемся занять (borrow) из соседних узлов или сливаем (merge).
      */
     fill(idx) {
-        // Borrow from previous sibling?
+        // Пытаемся взять ключ у предыдущего брата?
         if (idx > 0 && this.children[idx - 1].keys.length >= this.minDegree) {
             this.borrowFromPrev(idx);
         }
-        // Borrow from next sibling?
+        // Или у следующего брата?
         else if (
             idx < this.children.length - 1 &&
             this.children[idx + 1].keys.length >= this.minDegree
         ) {
             this.borrowFromNext(idx);
         } else {
-            // Otherwise, merge with a sibling
+            // Иначе сливаем с братом
             if (idx < this.children.length - 1) {
                 this.merge(idx);
             } else {
@@ -212,66 +219,66 @@ class BTreeNode {
     }
 
     /**
-     * Borrow one key from children[idx-1] and move it to children[idx].
+     * "Одолжить" один ключ у children[idx-1] и переместить его в children[idx].
      */
     borrowFromPrev(idx) {
         const child = this.children[idx];
         const sibling = this.children[idx - 1];
 
-        // The last key from sibling goes up to the parent
-        // The key at parent[idx-1] goes down to child
+        // Последний ключ из sibling "поднимается" в родителя
+        // Ключ из родителя (this.keys[idx - 1]) идёт в child
         child.keys.unshift(this.keys[idx - 1]);
         this.keys[idx - 1] = sibling.keys.pop();
 
-        // Move the sibling's last child as the first child of "child" if not leaf
+        // Если узел не лист, переносим и "лишнего" ребёнка
         if (!child.isLeaf) {
             child.children.unshift(sibling.children.pop());
         }
     }
 
     /**
-     * Borrow one key from children[idx+1] and move it to children[idx].
+     * "Одолжить" один ключ у children[idx+1] и переместить его в children[idx].
      */
     borrowFromNext(idx) {
         const child = this.children[idx];
         const sibling = this.children[idx + 1];
 
-        // The first key from sibling goes up to the parent
-        // The key at parent[idx] goes down to child
+        // Первый ключ из sibling "поднимается" в родителя
+        // Ключ родителя (this.keys[idx]) опускается в child
         child.keys.push(this.keys[idx]);
         this.keys[idx] = sibling.keys.shift();
 
-        // Move the sibling's first child as the last child of "child" if not leaf
+        // Если узел не лист, переносим первый дочерний узел sibling
         if (!child.isLeaf) {
             child.children.push(sibling.children.shift());
         }
     }
 
     /**
-     * Merge children[idx] and children[idx+1].
-     * The key this.keys[idx] moves down into the merged node.
+     * Сливает (merge) children[idx] и children[idx+1].
+     * Ключ this.keys[idx] опускается внутрь объединённого узла.
      */
     merge(idx) {
         const child = this.children[idx];
         const sibling = this.children[idx + 1];
         const mergeKey = this.keys[idx];
 
-        // Insert mergeKey into the left child
+        // Добавляем mergeKey в список ключей child
         child.keys.push(mergeKey);
 
-        // Add sibling's keys
+        // Добавляем ключи из sibling в child
         for (let k of sibling.keys) {
             child.keys.push(k);
         }
 
-        // If not leaf, connect the children
+        // Если узлы не листовые, подключаем детей sibling
         if (!child.isLeaf) {
             for (let c of sibling.children) {
                 child.children.push(c);
             }
         }
 
-        // Remove the key and sibling
+        // Удаляем ключ и указатель на sibling из текущего узла
         this.keys.splice(idx, 1);
         this.children.splice(idx + 1, 1);
     }
@@ -280,42 +287,47 @@ class BTreeNode {
 export default class BTree {
     constructor(maxKeys) {
         if (maxKeys < 3) {
-            throw new Error(
-                "Максимальное количество ключей должно быть не меньше 3"
-            );
+            throw new Error("Максимальное количество ключей должно быть не меньше 3");
         }
         this.maxKeys = maxKeys;
+        // Корень поначалу листовой
         this.root = new BTreeNode(this.maxKeys, true);
     }
 
+    /**
+     * Вставить ключ 'key' в B-дерево.
+     */
     insert(key) {
         const root = this.root;
+        // Если корень заполнен, нужно его разделить
         if (root.keys.length === this.maxKeys) {
-            // If root is full, split
             const newRoot = new BTreeNode(this.maxKeys, false);
+            // Старый корень становится дочерним
             newRoot.children.push(root);
             newRoot.splitChild(0);
             this.root = newRoot;
             this.root.insertNonFull(key);
         } else {
+            // Иначе просто вставляем в неполный узел
             root.insertNonFull(key);
         }
     }
 
     /**
-     * Delete a key from the B-Tree if it exists.
+     * Удалить ключ 'key' из B-дерева (если существует).
      */
     delete(key) {
-        if (!this.root) return; // Empty tree
+        if (!this.root) return; // Пустое дерево
+
         this.root.deleteKey(key);
 
-        // If the root has become empty and is not leaf, make its child the new root
+        // Если в корне не осталось ключей и он не лист, делаем его ребёнка новым корнем
         if (this.root.keys.length === 0 && !this.root.isLeaf) {
             this.root = this.root.children[0];
         }
 
-        // If the root is empty and a leaf, the tree is empty
-        if (this.root.keys.length === 0 && this.root.isLeaf) {
+        // Если корень пуст и листовой, значит дерево стало пустым
+        if (this.root && this.root.keys.length === 0 && this.root.isLeaf) {
             this.root = null;
         }
     }
