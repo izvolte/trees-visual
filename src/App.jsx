@@ -2,6 +2,8 @@ import {Route, BrowserRouter as Router, Routes} from "react-router-dom";
 
 import BTreeVisualizer from "./pages/b-tree/b-tree-visualizer.jsx";
 import RedBlackTreeVisualizer from "./pages/red-black-tree/red-black-tree-visializer.jsx";
+import AvlTreeVisualizer from "./pages/avl-tree/avl-tree-visualizer.jsx";
+
 
 import Home from "./pages/home.jsx";
 
@@ -20,6 +22,7 @@ function App() {
             <Route path="/" element={<Home />} />
             <Route path="/b-tree" element={<BTreeVisualizer />} />
             <Route path="/red-black-tree" element={<RedBlackTreeVisualizer />} />
+            <Route path="/avl-tree" element={<AvlTreeVisualizer />} />
           </Routes>
         </div>
       </div>
