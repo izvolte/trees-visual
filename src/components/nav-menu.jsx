@@ -11,12 +11,12 @@ const NavMenu = () => {
 
     return (
         <nav style={navStyle}>
-            {/* Ссылки на различные страницы */}
             <Link to="/">Главная</Link>
             <Link to="/b-tree">Binary Tree</Link>
             <Link to="/red-black-tree">Red Black Tree</Link>
             <Link to="/avl-tree">AVL tree</Link>
             <Link to="/heap">Heap</Link>
+            <Link to="/splay-tree">Splay tree</Link>
         </nav>
     );
 };

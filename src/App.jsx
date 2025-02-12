@@ -11,6 +11,7 @@ import NavMenu from "./components/nav-menu.jsx";
 
 import './App.css'
 import HeapVisualizer from "./pages/heap/heap-visualizer.jsx";
+import SplayTreeVisualizer from "./pages/splay-tree/splay-tree-visializer.jsx";
 
 function App() {
   return (
@@ -25,6 +26,7 @@ function App() {
             <Route path="/red-black-tree" element={<RedBlackTreeVisualizer />} />
             <Route path="/avl-tree" element={<AvlTreeVisualizer />} />
             <Route path="/heap" element={<HeapVisualizer />} />
+            <Route path="/splay-tree" element={<SplayTreeVisualizer />} />
           </Routes>
         </div>
       </div>
